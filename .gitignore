@@ -1,0 +1,9 @@
+bin
+.vscode
+tmp
+test.sh
+*.list
+*.urls
+deps/
+scratch/curl-uri
+Dockerfile-scratch
