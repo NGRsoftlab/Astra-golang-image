@@ -71,8 +71,8 @@
 ## [Supported Technologies](#contents)
 
 <!-- markdownlint-disable MD033 -->
-|                                                 OS                                                  |                                                                                                          Golang                                                                                                          | Status            |
-| :-------------------------------------------------------------------------------------------------: | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :---------------- |
+|                                                 OS                                                  |                                                                                                          Golang                                                                                                          | Status             |
+| :-------------------------------------------------------------------------------------------------: | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :----------------- |
 | ![Astra 1.7](https://img.shields.io/badge/Astra-1.7.x-00ADD8?style=flat&logo=astra&logoColor=white) |                                                        ![Golang 1.19](https://img.shields.io/badge/Golang-1.19-%2300ADD8.svg?style=flat&logo=go&logoColor=white)                                                         | ✅ Fully supported |
 | ![Astra 1.8](https://img.shields.io/badge/Astra-1.8.x-00ADD8?style=flat&logo=astra&logoColor=white) | ![Golang 1.21](https://img.shields.io/badge/Golang-1.21-%2300ADD8.svg?style=flat&logo=go&logoColor=white) <br> ![Golang 1.23](https://img.shields.io/badge/Golang-1.23-%2300ADD8.svg?style=flat&logo=go&logoColor=white) | ✅ Fully supported |
 
@@ -167,13 +167,14 @@ pre-commit installed at .git/hooks/pre-push
 
 ### [Container variables](#contents)
 
-| Имя                 | Значение по умолчанию |  Тип   |                                                    Описание |
-| :------------------ | :-------------------: | :----: | ----------------------------------------------------------: |
-| `image_name`        |         astra         | string |                                                 Имя образа. |
-| `image_registry`    |          ''           | string |                                Адрес до реестра образа[^1]. |
-| `image_version`     |      1.8.2-slim       | string |                                              Версия образа. |
-| `go_registry_proxy` |          ''           | string | Переменная, для установки своего проксирующего репозитория. |
-| `go_identity`       |         1.21          | string |                                Ожидаемая версия Golang[^2]. |
+| Имя                        | Значение по умолчанию |  Тип   |                                                                                                                                      Описание |
+| :------------------------- | :-------------------: | :----: | --------------------------------------------------------------------------------------------------------------------------------------------: |
+| `image_name`               |         astra         | string |                                                                                                                                   Имя образа. |
+| `image_registry`           |          ''           | string |                                                                                                                  Адрес до реестра образа[^1]. |
+| `image_version`            |      1.8.2-slim       | string |                                                                                                                                Версия образа. |
+| `go_registry_proxy`        |          ''           | string |                                                                                   Переменная, для установки своего проксирующего репозитория. |
+| `go_identity`              |         1.21          | string |                                                                                                                  Ожидаемая версия Golang[^2]. |
+| `install_additional_tools` |          ''           | string | Дополнительные компоненты ОС, которые необходимо установить. Разделителем между компонентами должен быть строчный пробел: `ldap-utils slapd`. |
 
 <!-- markdownlint-disable MD033 -->
 <div align="center"> <sub> Таблица 2. Переопределяемые аргументы для сборки образа. </sub> </div>

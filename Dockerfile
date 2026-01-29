@@ -15,6 +15,7 @@ SHELL [ "/bin/bash", "-exo", "pipefail", "-c" ]
 
 ## Define DEFAULT args
 ARG go_identity='1.21'
+ARG install_additional_tools
 
 ## Define environment
 ENV \
@@ -38,6 +39,8 @@ RUN \
         g++ \
         pkg-config \
         libc6-dev \
+## Additional tools
+        ${install_additional_tools} \
     && apt-clean.sh \
 ## Mock test
     && go version \
@@ -51,6 +54,15 @@ RUN \
     && ln -s "$(which go)" /usr/local/bin/golang \
 ## Deduplication cleanup
     && dedup-clean.sh /usr/ \
+## Get image package dump
+    && mkdir -p /usr/share/rocks \
+    && ( \
+        echo "# os-release" && cat /etc/os-release \
+        && echo "# dpkg-query" \
+        && dpkg-query -f \
+            '${db:Status-Abbrev},${binary:Package},${Version},${source:Package},${Source:Version}\n' \
+            -W \
+        ) >/usr/share/rocks/dpkg.query \
 ## Check can be preview /etc/issue
     && { \
         grep -qF 'cat /etc/issue' /etc/bash.bashrc \
