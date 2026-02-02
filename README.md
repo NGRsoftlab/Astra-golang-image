@@ -682,6 +682,8 @@ $ figlet -f doom 'Golang'
 $ aasvg --source --embed < docs/ascii.txt > docs/images/logo.svg
 ```
 
+Дополнительная [статья](docs/reduce-binary-size.md) об оптимизации Golang приложений
+
 <!-- markdownlint-disable MD033 MD041 MD051 -->
 <table align="center"><tr><td align="center" width="9999">
 <img src="docs/images/cya.png" align="center" alt="Gopher">

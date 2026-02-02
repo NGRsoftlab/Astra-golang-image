@@ -13,7 +13,7 @@ else
   GO_LOCATION="/usr/lib/go-${GO_MAJOR_MINOR_VERSION}"
 fi
 
-## Docs in HTML (20–50 Mb)
+## Docs in HTML (20-50 Mb)
 rm -rf "${GO_LOCATION}"/doc/
 ## Go tests
 rm -rf "${GO_LOCATION}"/test/
