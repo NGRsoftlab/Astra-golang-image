@@ -1,0 +1,114 @@
+# syntax=docker/dockerfile:1.7-labs
+
+## Definite image args
+ARG image_registry
+ARG image_name=golang
+ARG image_version=1.25-astra1.8.x-slim
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+#                         Base image                          #
+#               First stage, prepare environment              #
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+FROM ${image_registry}${image_name}:${image_version} AS base-stage
+
+SHELL [ "/bin/bash", "-exo", "pipefail", "-c" ]
+
+ARG \
+    user=anonymous \
+    uid=100000 \
+    gid=65536 \
+    version=1.0.0
+
+## Install upx and base components
+RUN \
+    --mount=type=bind,source=./scripts,target=/usr/local/sbin,readonly \
+    upx-install.sh \
+    && checksec-install.sh \
+    && apt-install.sh \
+        tzdata \
+        zip \
+        ca-certificates \
+        build-essential \
+        jq \
+        gcc \
+        libc6-dev \
+        file \
+    && apt-remove.sh
+
+## Create anonymous user
+# hadolint ignore=SC2154
+RUN \
+    mkdir -p \
+        /base/etc/ssl/certs \
+        /base/sbin \
+        /base/usr/src/app \
+## UID and GID
+    && echo 'root:x:0:' > /base/etc/group \
+    && echo "${user}:x:${gid}:" >> /base/etc/group \
+    && echo 'root:x:0:0:root:/root:/sbin/nologin' > /base/etc/passwd \
+    && echo "${user}:x:${uid}:${gid}:${user}:/nonexistent:/sbin/nologin" >> /base/etc/passwd \
+## Nologin binary
+    && echo 'int main() { return 1; }' > nologin.c \
+    && gcc -Os -no-pie -static -std=gnu99 -s -Wall -Werror -o /base/sbin/nologin nologin.c \
+## Copy root cert
+    && cp /etc/ssl/certs/ca-certificates.crt /base/etc/ssl/certs/ca-certificates.crt
+
+COPY scripts/test-checksec-app.sh /usr/bin/test-checksec-app
+
+WORKDIR /usr/share/zoneinfo
+
+RUN zip -q -r -0 /base/zoneinfo.zip .
+
+WORKDIR /opt
+
+COPY scratch/go.* .
+RUN go mod download
+
+COPY scratch/main.go .
+
+## Multicompile and security diagnostic golang app
+RUN \
+    --mount=type=bind,source=./scripts,target=/usr/local/sbin,readonly \
+    multicompile-go-app.sh
+
+WORKDIR /test
+
+COPY scratch/checksec-test/main.go scratch/checksec-test/go.mod ./
+COPY scratch/checksec-test/unsafe.c scratch/checksec-test/unsafe.h ./
+
+## Multicompile and security diagnostic golang app
+RUN \
+    --mount=type=bind,source=./scripts,target=/usr/local/sbin,readonly \
+    multicompile-go-app-for-checksec.sh
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+#                        Final image                          #
+#      Third stage, add only minimal application and deps     #
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+FROM scratch
+
+## Set base label
+LABEL \
+    maintainer="Vladislav Avdeev" \
+    organization="NGRSoftlab"
+
+## Import the user and group files from the base-stage
+COPY --from=base-stage /base/ /
+
+## Use an unprivileged user
+USER anonymous:anonymous
+
+## Set timezone data environment
+ENV \
+    ZONEINFO=/zoneinfo.zip \
+    PATH="/usr/src/app" \
+    SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
+    REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+
+## Run dir
+WORKDIR /usr/src/app
+
+## Be gentle and expose port
+EXPOSE 8080
+
+CMD [ "curl_uri" ]

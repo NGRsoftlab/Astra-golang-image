@@ -509,7 +509,7 @@ func (s *Server) locationHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		rightLines = append(rightLines,
-			fmt.Sprintf("%s [-] No internet access — skipping external data%s", red, reset),
+			fmt.Sprintf("%s [-] No internet access - skipping external data%s", red, reset),
 		)
 	}
 

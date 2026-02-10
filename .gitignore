@@ -6,4 +6,5 @@ test.sh
 *.urls
 deps/
 scratch/curl-uri
-Dockerfile-scratch
+scratch/checksec-test/checksec-test
+scratch/checksec-test/app*

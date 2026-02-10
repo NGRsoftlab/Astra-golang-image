@@ -59,6 +59,8 @@
   - [How to use this image](#how-to-use-this-image)
   - [How to test local](#how-to-test-local)
   - [Scratch](#scratch)
+    - [Ensuring secure software development](#ensuring-secure-software-development)
+    - [Using tags to demonstrate tricks](#using-tags-to-demonstrate-tricks)
     - [Interaction with third-party software components](#interaction-with-third-party-software-components)
     - [Interaction with private software components](#interaction-with-private-software-components)
   - [Miscellaneous](#miscellaneous)
@@ -108,7 +110,7 @@ pre-commit installed at .git/hooks/pre-push
 
 Существует несколько способов как можно взаимодействовать со сборкой образа. Благодаря скрипту[^2] может существовать 3 способа передачи аргумента в `Dockerfile`:
 
-1. Передача 'примерной' версии. В результате передачи данной строки, скрипт [попытается найти](scripts/go-install-approximately.sh#L74-80) точную версии, если таковой нет, то будет возвращена пустая строка
+1. Передача 'примерной' версии. В результате передачи данной строки, скрипт [попытается найти](scripts/go-install-approximately.sh#L106-111) точную версии, если таковой нет, то будет возвращена пустая строка
 
     ```console
     ## Export Golang version for 1.7.5
@@ -286,12 +288,11 @@ docker run --rm golang:1.21-astra1.8.2 bash -c "go install github.com/cosmos72/g
 
 ## [Scratch](#contents)
 
-Данный раздел будет обеспечивать краткие вводные для того, чтобы Вы в дальнейшем могла проектировать свои `Scratch` сборки, на примере [небольшой утилиты](scratch/main.go). Все, что демонстрируется, также подкреплено и всеми задействованными скриптами [сборочными](scripts/) или специализированными для [сборки](scratch/) через `scratch`. Все манипуляции поделены на определенное количество 'шагов' для которых будут даны краткие комментарии:
+Данный раздел будет обеспечивать краткие вводные для того, чтобы Вы в дальнейшем могли проектировать свои **Scratch** сборки, на примере [небольшой утилиты](scratch/main.go). Все, что демонстрируется, также подкреплено и всеми задействованными [сборочными скриптами](scripts/) или специализированными для [сборки](scratch/). Все манипуляции поделены на определенное количество 'шагов' для которых будут даны краткие комментарии:
 
 1. Первый этап - установка базовых компонентов для сборки
 
     ```Dockerfile
-    ## Install upx and base components
     RUN \
         --mount=type=bind,source=./scripts,target=/usr/local/sbin,readonly \
         upx-install.sh \
@@ -306,21 +307,17 @@ docker run --rm golang:1.21-astra1.8.2 bash -c "go install github.com/cosmos72/g
 2. Второй этап - упаковка минимального набора компонентов для переноса в `Scratch`
 
     ```Dockerfile
-    ## Create anonymous user
     RUN \
         mkdir -p \
             /base/etc/ssl/certs \
             /base/sbin \
             /base/usr/src/app \
-    ## UID and GID
         && echo 'root:x:0:' > /base/etc/group \
         && echo "${user}:x:${gid}:" >> /base/etc/group \
         && echo 'root:x:0:0:root:/root:/sbin/nologin' > /base/etc/passwd \
         && echo "${user}:x:${uid}:${gid}:${user}:/nonexistent:/sbin/nologin" >> /base/etc/passwd \
-    ## Nologin binary
         && echo 'int main() { return 1; }' > nologin.c \
         && gcc -Os -no-pie -static -std=gnu99 -s -Wall -Werror -o /base/sbin/nologin nologin.c \
-    ## Copy root cert
         && cp /etc/ssl/certs/ca-certificates.crt /base/etc/ssl/certs/ca-certificates.crt
 
     WORKDIR /usr/share/zoneinfo
@@ -328,7 +325,7 @@ docker run --rm golang:1.21-astra1.8.2 bash -c "go install github.com/cosmos72/g
     RUN zip -q -r -0 /base/zoneinfo.zip .
     ```
 
-3. Третий этап - сборка и оптимизация приложения при помощи [`upx`](https://github.com/upx/upx)
+3. Третий этап - сборка и оптимизация приложения при помощи [UPX](https://github.com/upx/upx)
 
     ```Dockerfile
     WORKDIR /opt
@@ -345,38 +342,31 @@ docker run --rm golang:1.21-astra1.8.2 bash -c "go install github.com/cosmos72/g
             -installsuffix=static \
             -o curl-uri main.go
 
-    ## Reduce binary size: ~5.7Mb => ~1,8Mb
     RUN \
         echo "Original binary size: $(du -hs curl-uri)" \
         && upx --best --lzma -o curl_uri_compressed curl-uri \
         && echo "Compressed binary size: $(du -hs curl_uri_compressed)"
 
-    ## Copy optimized app
     RUN \
         cp curl_uri_compressed /base/usr/src/app/curl-uri \
         && chmod 755 /base/usr/src/app/curl-uri
     ```
 
-4. Заключительный этап - миграция к скретч и запуск приложения
+4. Заключительный этап - миграция в скретч образ и запуск приложения
 
     ```Dockerfile
-    ## Import the user and group files from the base-stage
     COPY --from=base-stage /base/ /
 
-    ## Use an unprivileged user
     USER anonymous:anonymous
 
-    ## Set timezone data environment
     ENV \
         ZONEINFO=/zoneinfo.zip \
         PATH="/usr/src/app" \
         SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
         REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
 
-    ## Run dir
     WORKDIR /usr/src/app
 
-    ## Be gentle and expose port
     EXPOSE 8080
 
     ENTRYPOINT [ "curl-uri" ]
@@ -387,7 +377,7 @@ docker run --rm golang:1.21-astra1.8.2 bash -c "go install github.com/cosmos72/g
 Запуск: `docker run --rm --network=host --dns 8.8.8.8 -e IPINFO_TOKEN=4426e4d4334a8d curl-uri:1.0.0`
 
 > [!warning]
-> Если `IPINFO_TOKEN` не определяется, то зарегистрируйте новый на [`ipinfo.io`](https://ipinfo.io/)
+> Если `IPINFO_TOKEN` не определяется, то зарегистрируйте новый на [ipinfo.io](https://ipinfo.io/)
 
 Примеры использования:
 
@@ -473,135 +463,522 @@ docker run --rm golang:1.21-astra1.8.2 bash -c "go install github.com/cosmos72/g
     upx_server_up 1
     ```
 
-Полный `Dockerfile`:
+> [!tip]
+> Полный [Dockerfile](Dockerfile-scratch)
 
-```Dockerfile
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-#                         Base image                          #
-#               First stage, prepare environment              #
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-FROM golang:1.21-astra1.8.2-slim AS base-stage
+### [Ensuring secure software development](#contents)
 
-SHELL [ "/bin/bash", "-exo", "pipefail", "-c" ]
+Для обеспечения РБПО будут разобраны некоторые нюансы
 
-ARG \
-    user=anonymous \
-    uid=100000 \
-    gid=65536 \
-    version=1.0.0
+При помощи утилиты [checksec](https://github.com/slimm609/checksec) можно проверить свойства исполняемых файлов
 
-## Disable CGO by default and try to avoid installing the package: `libc6-compat`
-# Source: https://stackoverflow.com/questions/62634820/build-small-image-from-scratch-open-no-such-file-or-directory
-# Source: https://www.reddit.com/r/golang/comments/pi97sp/what_is_the_consequence_of_using_cgo_enabled0/
-ENV CGO_ENABLED=0
+Пример установки:
 
-## Install upx and base components
-RUN \
-    --mount=type=bind,source=./scripts,target=/usr/local/sbin,readonly \
-    upx-install.sh \
-    && apt-install.sh \
-        tzdata \
-        zip \
-        ca-certificates \
-        build-essential \
-    && apt-remove.sh
+```shell
+dpkg_arch="$(dpkg --print-architecture)"
+checksec_base="https://github.com/slimm609/checksec"
+checksec_version=$(curl -Ls -o /dev/null -w '%{url_effective}' "${checksec_base}/releases/latest")
+checksec_version="${checksec_version##*/}"
+checksec_version="${checksec_version#v*}"
+checksec_url="${checksec_base}/releases/download/${checksec_version}/checksec_${checksec_version}_${dpkg_arch}.deb"
 
-## Create anonymous user
-# hadolint ignore=SC2154
-RUN \
-    mkdir -p \
-        /base/etc/ssl/certs \
-        /base/sbin \
-        /base/usr/src/app \
-## UID and GID
-    && echo 'root:x:0:' > /base/etc/group \
-    && echo "${user}:x:${gid}:" >> /base/etc/group \
-    && echo 'root:x:0:0:root:/root:/sbin/nologin' > /base/etc/passwd \
-    && echo "${user}:x:${uid}:${gid}:${user}:/nonexistent:/sbin/nologin" >> /base/etc/passwd \
-## Nologin binary
-    && echo 'int main() { return 1; }' > nologin.c \
-    && gcc -Os -no-pie -static -std=gnu99 -s -Wall -Werror -o /base/sbin/nologin nologin.c \
-## Copy root cert
-    && cp /etc/ssl/certs/ca-certificates.crt /base/etc/ssl/certs/ca-certificates.crt
+## Download
+curl -sLO "${checksec_url}"
 
-WORKDIR /usr/share/zoneinfo
+## Install
+sudo apt install "./${checksec_url##*/}"
 
-## -0 means no compression.  Needed because go's
-## tz loader doesn't handle compressed data
-RUN zip -q -r -0 /base/zoneinfo.zip .
+## Remove installer
+rm -f "./${checksec_url##*/}"
 
-WORKDIR /opt
-
-## Top-level layer for pumping dependencies
-## Necessary, because subsequently the changeable
-## layers, which are located below, will change
-## and this layer will not be recreated, thereby
-## optimizing the build time
-COPY scratch/go.* .
-RUN go mod download
-
-## The level below, which assumes frequent changes.
-## In order to optimize the build time, it is necessary
-## to place it below, because the subsequent build
-## will analyze the hash checksums, and based on them
-## skip the main "long" build, going straight to the
-## final part, where the code base will change
-## regularly, thereby rebuilding only this layer
-## Copy app
-COPY scratch/main.go .
-
-## Build app
-# hadolint ignore=SC2154
-RUN \
-    go build \
-        -v \
-        -ldflags "-extldflags '-static' -w -s -X 'main.AppVersion=${version}'" \
-        -installsuffix=static \
-        -o curl-uri main.go
-
-## Reduce binary size: ~9.0Mb => ~2.7Mb
-RUN \
-    echo "Original binary size: $(du -hs curl-uri)" \
-    && upx --best --lzma -o curl_uri_compressed curl-uri \
-    && echo "Compressed binary size: $(du -hs curl_uri_compressed)"
-
-## Copy optimized app
-RUN \
-    cp curl_uri_compressed /base/usr/src/app/curl-uri \
-    && chmod 755 /base/usr/src/app/curl-uri
-
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-#                        Final image                          #
-#      Third stage, add only minimal application and deps     #
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-FROM scratch
-
-## Set base label
-LABEL \
-    maintainer="Vladislav Avdeev" \
-    organization="NGRSoftlab"
-
-## Import the user and group files from the base-stage
-COPY --from=base-stage /base/ /
-
-## Use an unprivileged user
-USER anonymous:anonymous
-
-## Set timezone data environment
-ENV \
-    ZONEINFO=/zoneinfo.zip \
-    PATH="/usr/src/app" \
-    SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
-    REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
-
-## Run dir
-WORKDIR /usr/src/app
-
-## Be gentle and expose port
-EXPOSE 8080
-
-ENTRYPOINT [ "curl-uri" ]
+## Check version
+checksec -v
 ```
+
+Попробуем собрать [экспериментальное приложение](scratch/checksec-test), чтобы увидеть эффект сборки с **CGO**
+
+```shell
+docker build \
+    --no-cache \
+    --progress=plain \
+    --target=base-stage \
+    -t curl-uri:checksec-stage \
+    -f Dockerfile-debug \
+    .
+
+docker run -it --rm -w /test curl-uri:checksec-stage test-checksec-app
+```
+
+Результаты, после запуска тестов при помощи [скрипта](scripts/test-checksec-app.sh):
+
+1. Результаты для приложения собранного без безопасных опций
+
+    ```plaintext
+    ========================
+    TEST FOR '/usr/bin/app_unprotected' ONLY
+    ========================
+    ====>Checking for RELRO support
+    /usr/bin/app_unprotected: Partial RELRO
+
+    ====>Checking for NX support
+    /usr/bin/app_unprotected: NX enabled
+
+    ====>Checking for PIE support
+    /usr/bin/app_unprotected: No PIE
+
+    ====>Checking for rpath
+    /usr/bin/app_unprotected: No RPATH
+
+    ====>Checking for run path
+    /usr/bin/app_unprotected: No RUNPATH
+
+    ====>Checking for stack canaries
+    /usr/bin/app_unprotected: 0 (NO CANARIES)
+
+    ====>Checking for FORTIFY
+
+    ====>Check Debug symbols
+    /usr/bin/app_unprotected: Not found debug symbols
+
+    ====>Checksec: /usr/bin/app_unprotected
+    {
+      "canary": "No Canary Found",
+      "cfi": "NO SHSTK & NO IBT",
+      "fortified": "0",
+      "fortify_source": "No",
+      "fortifyable": "5",
+      "nx": "NX enabled",
+      "pie": "PIE Disabled",
+      "relro": "Partial RELRO",
+      "rpath": "No RPATH",
+      "runpath": "No RUNPATH",
+      "symbols": "No Symbols"
+    }
+
+    ====>/usr/bin/app_unprotected size: 1.5M  /usr/bin/app_unprotected
+
+    ====>/usr/bin/app_unprotected interpreter check
+          [Requesting program interpreter: /lib64/ld-linux-x86-64.so.2]
+
+    ====>/usr/bin/app_unprotected lib check
+      linux-vdso.so.1 (0x00007ffca19f4000)
+      libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00007681bc691000)
+      /lib64/ld-linux-x86-64.so.2 (0x00007681bc877000)
+
+    ====>/usr/bin/app_unprotected check type
+    /usr/bin/app_unprotected: ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, BuildID[sha1]=fc5db8b318dec0c33195892561ab31ad2119e87b, for GNU/Linux 4.11.0, stripped
+    ```
+
+2. Результаты для приложения собранного с безопасными опциями
+
+    ```plaintext
+    ========================
+    TEST FOR '/usr/bin/app_protected' ONLY
+    ========================
+    ====>Checking for RELRO support
+    /usr/bin/app_protected: Full RELRO
+
+    ====>Checking for NX support
+    /usr/bin/app_protected: NX enabled
+
+    ====>Checking for PIE support
+    /usr/bin/app_protected: PIE enabled
+
+    ====>Checking for rpath
+    /usr/bin/app_protected: No RPATH
+
+    ====>Checking for run path
+    /usr/bin/app_protected: No RUNPATH
+
+    ====>Checking for stack canaries
+    /usr/bin/app_protected: 0 (NO CANARIES)
+
+    ====>Checking for FORTIFY
+
+    ====>Check Debug symbols
+    /usr/bin/app_protected: Not found debug symbols
+
+    ====>Checksec: /usr/bin/app_protected
+    {
+      "canary": "Canary Found",
+      "cfi": "NO SHSTK & NO IBT",
+      "fortified": "4",
+      "fortify_source": "Yes",
+      "fortifyable": "5",
+      "nx": "NX enabled",
+      "pie": "PIE Enabled",
+      "relro": "Full RELRO",
+      "rpath": "No RPATH",
+      "runpath": "No RUNPATH",
+      "symbols": "No Symbols"
+    }
+
+    ====>/usr/bin/app_protected size: 1.7M  /usr/bin/app_protected
+
+    ====>/usr/bin/app_protected interpreter check
+          [Requesting program interpreter: /lib64/ld-linux-x86-64.so.2]
+
+    ====>/usr/bin/app_protected lib check
+      linux-vdso.so.1 (0x00007ffe04fe3000)
+      libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x000079c9f3f7f000)
+      /lib64/ld-linux-x86-64.so.2 (0x000079c9f4339000)
+
+    ====>/usr/bin/app_protected check type
+    /usr/bin/app_protected: ELF 64-bit LSB pie executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, BuildID[sha1]=5dfdc0fe3896e7566ce3b6f96d83f5ebbf68a8c0, for GNU/Linux 4.11.0, stripped
+    ```
+
+    По результатам обзорной демонстрации и сравнения тестов(пункт 1 и пункт 2), между приложением собранным с безопасными опциями и без безопасных опций, приходим к выводу:
+
+    - Сборка с `-buildmode=pie` обеспечивает безопасное покрытие (позиционно-независимый исполняемый файл - требует динамической перелокации), но "приковывает" нас к общим объектам
+    - `CGO_ENABLED=1` обеспечивает покрытие функции перемещения данных только для чтения(RELRO - требует ld.so для BIND_NOW)
+    - Защитные опции и теги дают прибавку к весу приложения, но значительно улучшает защищенность приложения, хотя оно и становиться динамически линкованным
+
+3. Результат компрессии при помощи UPX и strip
+
+    ```plaintext
+    ========================
+    CHECK INFO FOR COMPRESSED BINARY
+    ========================
+    ====>Compressed via UPX binary size: 536K  /usr/bin/app_unprotected_compressed
+    {
+      "canary": "No Canary Found",
+      "cfi": "Unknown",
+      "fortified": "0",
+      "fortify_source": "N/A",
+      "fortifyable": "0",
+      "nx": "NX enabled",
+      "pie": "PIE Disabled",
+      "relro": "No RELRO",
+      "rpath": "No RPATH",
+      "runpath": "No RUNPATH",
+      "symbols": "No Symbols"
+    }
+
+    ====>Compressed via UPX binary size with protection options: 552K  /usr/bin/app_protected_compressed
+    {
+      "canary": "No Canary Found",
+      "cfi": "Unknown",
+      "fortified": "0",
+      "fortify_source": "N/A",
+      "fortifyable": "0",
+      "nx": "NX enabled",
+      "pie": "PIE Enabled",
+      "relro": "No RELRO",
+      "rpath": "No RPATH",
+      "runpath": "No RUNPATH",
+      "symbols": "No Symbols"
+    }
+
+    ====>Compressed via strip binary size: 1.5M  /usr/bin/app_unprotected_strip
+    {
+      "canary": "No Canary Found",
+      "cfi": "NO SHSTK & NO IBT",
+      "fortified": "0",
+      "fortify_source": "No",
+      "fortifyable": "5",
+      "nx": "NX enabled",
+      "pie": "PIE Disabled",
+      "relro": "Partial RELRO",
+      "rpath": "No RPATH",
+      "runpath": "No RUNPATH",
+      "symbols": "No Symbols"
+    }
+
+    ====>Compressed via strip binary size with protection options: 1.7M  /usr/bin/app_protected_strip
+    {
+      "canary": "Canary Found",
+      "cfi": "NO SHSTK & NO IBT",
+      "fortified": "4",
+      "fortify_source": "Yes",
+      "fortifyable": "5",
+      "nx": "NX enabled",
+      "pie": "PIE Enabled",
+      "relro": "Full RELRO",
+      "rpath": "No RPATH",
+      "runpath": "No RUNPATH",
+      "symbols": "No Symbols"
+    }
+
+    ```
+
+    В рамках данного контекста использование [UPX](https://github.com/upx/upx) может предоставлять опасность, т.к. UPX модифицирует структуру ELF-файла:
+
+    - Сжимает `.text`, `.data` и другие секции
+    - Добавляет свой загрузчик (unpack stub) в начало файла
+    - Изменяет права доступа к сегментам памяти (например, делает .text записываемым во время распаковки)
+    - Нарушает оригинальную организацию секций и таблиц динамической линковки
+
+4. Соотношение размеров обычного собранного приложения и последующей "оптимизации" и компрессии, на примере приложения собранного с защитными опциями
+
+    ```plaintext
+    ====>/usr/bin/app_protected size: 1.7M  /usr/bin/app_protected
+
+    ====>Compressed via UPX binary size with protection options: 552K  /usr/bin/app_protected_compressed
+
+    ====>Compressed via strip binary size with protection options: 1.7M  /usr/bin/app_protected_strip
+    ```
+
+    Приходим к выводу, что флаги `-s -w` в `-ldflags` при компиляции делают то же самое, что и `strip`:
+
+    - `-s` - удаляет символьную таблицу(`.symtab`)
+    - `-w` - удаляет отладочную информацию(DWARF, `.debug_*` секции)
+
+5. Результаты тестов с демонстрацией переполнение стека
+
+    ```plaintext
+    ====>STACK OVERFLOW
+
+    Testing UNPROTECTED binary
+    Expected: SIGSEGV or silent corruption
+    Copied: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+    SIGSEGV: segmentation violation
+    PC=0x49d144 m=0 sigcode=128 addr=0x0
+    signal arrived during cgo execution
+
+    goroutine 1 gp=0xc000002380 m=0 mp=0x577e40 [syscall]:
+    ...
+    /usr/bin/app_unprotected: exit code(2)
+
+    Testing PROTECTED binary
+    Expected: Aborted with 'stack smashing detected'
+    *** buffer overflow detected ***: terminated
+    SIGABRT: abort
+    PC=0x7b0390cc88fc m=0 sigcode=18446744073709551610
+    signal arrived during cgo execution
+
+    goroutine 1 gp=0xc000002380 m=0 mp=0x5ad6d453cca0 [syscall]:
+    ...
+    /usr/bin/app_protected: exit code(2)
+    ```
+
+    Наблюдаем:
+
+    - У приложения без защищенных опций неопределённое поведение, т.к. переполнение [64-байтного буфера 100 байтами](scratch/checksec-test/main.go#L28) - повреждение стека
+    - У приложения с защищенными опциями ожидается '**stack smashing detected**', т.к. стековая канарейка обнаружила перезапись защитного значения
+
+6. Результаты тестов с демонстрацией переполнение буфера в куче
+
+    ```plaintext
+    ====>HEAP OVERFLOW
+
+    Testing UNPROTECTED binary
+    Expected: SIGSEGV or silent corruption
+    Read 839 bytes
+    SIGSEGV: segmentation violation
+    PC=0x49d1b2 m=0 sigcode=128 addr=0x0
+    signal arrived during cgo execution
+
+    goroutine 1 gp=0xc000002380 m=0 mp=0x577e40 [syscall]:
+    ...
+    /usr/bin/app_unprotected: exit code(2)
+
+    ====>Testing PROTECTED binary FORTIFY_SOURCE
+    Expected: Aborted with 'buffer overflow detected'
+    *** buffer overflow detected ***: terminated
+    SIGABRT: abort
+    PC=0x73ec99ac18fc m=0 sigcode=18446744073709551610
+    signal arrived during cgo execution
+
+    goroutine 1 gp=0xc000002380 m=0 mp=0x601f43243ca0 [syscall]:
+    ...
+    /usr/bin/app_protected: exit code(2)
+    ```
+
+    Наблюдаем:
+
+    - У приложения без защищенных опций повреждение кучи или тихий крах, т.к. чтение [1024 байт в 256-байтный буфер](scratch/checksec-test/unsafe.c#L15-25) - перезапись смежных данных
+    - У приложения с защищенными опциями ожидается '**buffer overflow detected**', т.к. **FORTIFY_SOURCE** заменил `fread()` на `__fread_chk()` который проверил размер буфера во время выполнения
+
+7. Результаты тестов с демонстрацией безопасной операции
+
+    ```plaintext
+    ====>SAFE CONTROL TEST
+
+    ====>Testing UNPROTECTED binary with safe option
+    Safe copied: Hello
+
+    ====>Testing PROTECTED binary with safe option
+    Safe copied: Hello
+    ```
+
+    Наблюдаем:
+
+    - У приложения без защищенных опций успешное выполнение
+    - У приложения с защищенными опциями успешное выполнение
+    - Ну а что вы хотели, контрольный тест же
+
+Создадим образ из [Dockerfile](Dockerfile-debug) для проверки всех вариантов, после компиляции, свойств исполняемых файлов на примере Golang приложения без CGO, но используя [опции сборки](scripts/multicompile-go-app.sh#L19-22) для CGO:
+
+```shell
+docker build \
+    --no-cache \
+    --progress=plain \
+    -t curl-uri:debug \
+    -f Dockerfile-debug \
+    .
+
+## Варианты вызова разных вариаций приложений для демонстрации стабильной работы: <app>
+# curl_uri
+# curl_uri_secup
+# curl_uri_compressed
+# curl_uri_compressed_secup
+# curl_uri_strip
+# curl_uri_strip_secup
+docker run --rm --network=host --dns 8.8.8.8 -e IPINFO_TOKEN=4426e4d4334a8d curl-uri:debug <app>
+```
+
+1. Результаты тестов приложений после сборки для приложения без безопасных опций и с `CGO_ENABLED=0`:
+
+    ```plaintext
+    ### CGO_ENABLED=0 (UNPROTECTED APP)
+
+    ====>Original binary size: 9.0M curl_uri
+    {
+      "canary": "No Canary Found",
+      "cfi": "Unknown",
+      "fortified": "0",
+      "fortify_source": "N/A",
+      "fortifyable": "0",
+      "nx": "NX enabled",
+      "pie": "PIE Disabled",
+      "relro": "No RELRO",
+      "rpath": "No RPATH",
+      "runpath": "No RUNPATH",
+      "symbols": "No Symbols"
+    }
+
+    ====>Compressed via UPX binary size: 2.7M curl_uri_compressed
+    {
+      "canary": "No Canary Found",
+      "cfi": "Unknown",
+      "fortified": "0",
+      "fortify_source": "N/A",
+      "fortifyable": "0",
+      "nx": "NX enabled",
+      "pie": "PIE Disabled",
+      "relro": "No RELRO",
+      "rpath": "No RPATH",
+      "runpath": "No RUNPATH",
+      "symbols": "No Symbols"
+    }
+
+    ====>Compressed via strip binary size: 9.0M curl_uri_strip
+    {
+      "canary": "No Canary Found",
+      "cfi": "Unknown",
+      "fortified": "0",
+      "fortify_source": "N/A",
+      "fortifyable": "0",
+      "nx": "NX enabled",
+      "pie": "PIE Disabled",
+      "relro": "No RELRO",
+      "rpath": "No RPATH",
+      "runpath": "No RUNPATH",
+      "symbols": "No Symbols"
+    }
+    ```
+
+2. Результаты тестов приложений после сборки для приложения c безопасными опциями и с `CGO_ENABLED=1`:
+
+    ```plaintext
+    ### CGO_ENABLED=1 (PROTECTED APP)
+
+    ====>Original binary size with protection options: 9.9M curl_uri_secup
+    {
+      "canary": "No Canary Found",
+      "cfi": "Unknown",
+      "fortified": "0",
+      "fortify_source": "N/A",
+      "fortifyable": "0",
+      "nx": "NX enabled",
+      "pie": "PIE Disabled",
+      "relro": "No RELRO",
+      "rpath": "No RPATH",
+      "runpath": "No RUNPATH",
+      "symbols": "No Symbols"
+    }
+
+    ====>Compressed via UPX binary size with protection options: 2.8M curl_uri_compressed_secup
+    {
+      "canary": "No Canary Found",
+      "cfi": "Unknown",
+      "fortified": "0",
+      "fortify_source": "N/A",
+      "fortifyable": "0",
+      "nx": "NX enabled",
+      "pie": "PIE Disabled",
+      "relro": "No RELRO",
+      "rpath": "No RPATH",
+      "runpath": "No RUNPATH",
+      "symbols": "No Symbols"
+    }
+
+    ====>Compressed via strip binary size with protection options: 9.9M curl_uri_strip_secup
+    {
+      "canary": "No Canary Found",
+      "cfi": "Unknown",
+      "fortified": "0",
+      "fortify_source": "N/A",
+      "fortifyable": "0",
+      "nx": "NX enabled",
+      "pie": "PIE Disabled",
+      "relro": "No RELRO",
+      "rpath": "No RPATH",
+      "runpath": "No RUNPATH",
+      "symbols": "No Symbols"
+    }
+    ```
+
+    Снова убеждаемся, что использование **strip** не целесообразно, т.е. пользы нет по сжатию. При статической линковке отличия от небезопасной сборки с использованием `-extldflags` не даёт никакой разницы с противоположной сборки
+
+    Переменные не имеют смысла, если нет CGO:
+
+    - `CGO_CFLAGS="-O2 -D_FORTIFY_SOURCE=2 -fstack-protector-strong"`
+    - `CGO_LDFLAGS="-Wl,-z,relro,-z,now"`
+
+    Пояснение по отдельным тестам:
+
+    - Почему `No Canary Found` - стековые канарейки не используются из-за архитектуры runtime. Если использовать CGO, то будет эффект
+    - Почему `No RELRO` и `PIE Disabled` - для сборки в [Scratch](https://hub.docker.com/_/scratch) и при запуске ядро пытается загрузить динамический линковщик(glibc, libpthread и др.), а там нет никаких системных библиотек. Поэтому необходимо собирать приложение с `-extldflags '-static'`
+
+Вывод по результатам тестов - при портировании приложения в [Scratch](https://hub.docker.com/_/scratch), кажется, что можно использовать UPX, ибо разницы нет. При желании в защитные опции - использовать облегченные образы, например [Distroless](https://github.com/GoogleContainerTools/distroless)
+
+Дополнительный ресурсы:
+
+- [Checksec](https://medium.com/@slimm609/checksec-d4131dff0fca)
+- [OWASP Secure Coding Practices](https://owasp.org/www-project-secure-coding-practices-quick-reference-guide/)
+- [Linux Hardening Guide](https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/8/pdf/security_hardening/security-hardening.pdf)
+- [Go Security Best Practices](https://go.dev/doc/security/best-practices)
+- [Clang Hardening Cheat Sheet - Ten Years Later](https://blog.quarkslab.com/clang-hardening-cheat-sheet-ten-years-later.html)
+- [Linux Binary Hardening: RELRO, PIE, NX, and CET](https://nathanberg.io/posts/linux-binary-hardening-relro-pie-nx-cet/)
+- [hardening-check](https://manpages.ubuntu.com/manpages/trusty/man1/hardening-check.1.html)
+- [CTF Handbook](https://ctf101.org)
+
+### [Using tags to demonstrate tricks](#contents)
+
+В некоторых сборках, можно заметить [теги](scripts/multicompile-go-app.sh#L27)
+
+Что делают теги и зачем они используются:
+
+- `netgo` - использует чистую Go-реализацию сетевого стека вместо системных вызовов через CGO(getaddrinfo, socket и др.)
+- `osusergo` - чистая Go реализация работы с пользователями(без CGO, но ограничения - LDAP)
+- `production` - отключение отладочных фич(`//go:build !debug`)
+
+Пример дополнительных тегов:
+
+- `timetzdata` - встраивает базу часовых поясов в бинарник для статических бинарников без `/usr/share/zoneinfo`
+- `purego` - отключает все ассемблерные оптимизации для аудита кода или верификации
+- `math_big_pure_go` - чистая Go-реализация big.Int для воспроизводимости вычислений
+- `static` - принудительная статическая линковка(`CGO_ENABLED=1 go build -tags static`)
+- `musl` - оптимизации под musl libc для сборки под Alpine
+- `debug` - включение расширенного логгирования
+- `msan` - MemorySanitizer
+- `asan` - AddressSanitizer
+
+Дополнительный ресурсы:
+
+- [go build tags habr](https://habr.com/ru/companies/otus/articles/886044/)
+- [go build](https://pkg.go.dev/go/build)
 
 ### [Interaction with third-party software components](#contents)
 
@@ -663,7 +1040,9 @@ password=password
 
 ## [Miscellaneous](#contents)
 
-Лого для проекта создано при помощи [`aasvg`](https://github.com/martinthomson/aasvg) проекта. Вы можете создать такое же и/или модифицировать имеющееся. Для этого воспользуйтесь [сайтом](https://patorjk.com/software/taag/#p=display&f=Doom) или установите `figlet`. Если Вы используете способ с установкой `figlet`, то вдобавок необходимо сказать необходимый шрифт, например я использую `Doom`. Далее, необходимо воспользоваться `aasvg` и конвертировать `ascii` арт в `svg`. Обратите внимание - по умолчанию будет svg в красном цвете, чтобы изменить цвет, необходимо изменить его определение [тут](docs/images/logo.svg#L76)
+Дополнительная [статья](docs/reduce-binary-size.md) об оптимизации Golang приложений
+
+Лого для проекта создано при помощи [`aasvg`](https://github.com/martinthomson/aasvg) проекта. Вы можете создать такое же и/или модифицировать имеющееся. Для этого воспользуйтесь [сайтом](https://patorjk.com/software/taag/#p=display&f=Doom) или установите `figlet`. Если Вы используете способ с установкой `figlet`, то вдобавок необходимо сказать необходимый шрифт, например я использую `Doom`. Далее, необходимо воспользоваться `aasvg` и конвертировать `ascii` арт в `svg`. Обратите внимание - по умолчанию будет svg в красном цвете, чтобы изменить цвет, необходимо изменить его определение [тут](docs/images/logo.svg#L72)
 
 ```console
 $ curl 'http://www.figlet.org/fonts/doom.flf' -o /usr/share/figlet/doom.flf
@@ -681,8 +1060,6 @@ $ figlet -f doom 'Golang'
 
 $ aasvg --source --embed < docs/ascii.txt > docs/images/logo.svg
 ```
-
-Дополнительная [статья](docs/reduce-binary-size.md) об оптимизации Golang приложений
 
 <!-- markdownlint-disable MD033 MD041 MD051 -->
 <table align="center"><tr><td align="center" width="9999">

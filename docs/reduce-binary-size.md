@@ -1,7 +1,29 @@
 <!-- markdownlint-disable MD033 MD041 MD044-->
 # Initial state
 
-[source](https://github.com/xaionaro/documentation/blob/master/golang/reduce-binary-size.md)
+[original source](https://github.com/xaionaro/documentation/blob/master/golang/reduce-binary-size.md)
+
+```sh
+$ go version
+
+go version go1.13 linux/amd64
+
+$ mkdir /tmp/helloworld; cd /tmp/helloworld;
+$ cat > main.go <<EOF
+package main
+
+import "fmt"
+
+func main() {
+        fmt.Println("Hello world!")
+}
+EOF
+
+$ export CGO_ENABLED=0
+$ go build; stat -c %s helloworld
+
+2012745
+```
 
 ## Content
 
@@ -30,28 +52,6 @@
     - [Find the causer: `go tool objdump`](#find-the-causer-go-tool-objdump)
     - [Checking DCE](#checking-dce)
   - [99 bytes "Hello world" static binary](#99-bytes-hello-world-static-binary)
-
-```sh
-$ go version
-
-go version go1.13 linux/amd64
-
-$ mkdir /tmp/helloworld; cd /tmp/helloworld;
-$ cat > main.go <<EOF
-package main
-
-import "fmt"
-
-func main() {
-        fmt.Println("Hello world!")
-}
-EOF
-
-$ export CGO_ENABLED=0
-$ go build; stat -c %s helloworld
-
-2012745
-```
 
 ## Simple tricks
 

@@ -8,7 +8,7 @@ __is_command() {
 }
 
 if __is_command upx; then
-  return 0
+  exit 0
 fi
 
 ## Install deps
@@ -39,6 +39,9 @@ curl -Ls \
   | tar -C "/usr/local/bin" --strip-components 1 -Jx
 
 chmod +x /usr/local/bin/upx
+
+## Test app
+upx --version
 
 ## Remove deps
 apt-env.sh apt-remove.sh xz-utils curl
