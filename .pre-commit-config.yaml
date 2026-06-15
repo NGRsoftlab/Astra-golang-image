@@ -45,7 +45,7 @@ repos:
 # --------------------------- 🔍 Code Quality Tools -------------------------- #
   ### Markdown ###
   - repo: https://github.com/DavidAnson/markdownlint-cli2
-    rev: v0.20.0
+    rev: v0.22.1
     hooks:
       - id: markdownlint-cli2
         name: "📝 markdown · Format markdown via markdownlint-cli2"
@@ -61,7 +61,7 @@ repos:
         exclude: ^legacy/
 
   - repo: https://github.com/scop/pre-commit-shfmt
-    rev: v3.12.0-2
+    rev: v3.13.1-1
     hooks:
       - id: shfmt
         name: "🐚 shell · Format shell scripts"
@@ -92,7 +92,7 @@ repos:
 
   ### Syntax ###
   - repo: https://github.com/codespell-project/codespell
-    rev: v2.4.1
+    rev: v2.4.2
     hooks:
       - id: codespell
         name: "📝 codespell · Validate files for spelling errors"
@@ -109,7 +109,7 @@ repos:
 
   ### PNG Images ###
   - repo: https://github.com/shssoichiro/oxipng
-    rev: v10.1.0
+    rev: v10.1.1
     hooks:
       - id: oxipng
         name: "🖼️ images · Optimize PNG files"

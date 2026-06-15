@@ -73,10 +73,18 @@
 ## [Supported Technologies](#contents)
 
 <!-- markdownlint-disable MD033 -->
-|                                                 OS                                                  |                                                                                                          Golang                                                                                                          | Status             |
-| :-------------------------------------------------------------------------------------------------: | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :----------------- |
-| ![Astra 1.7](https://img.shields.io/badge/Astra-1.7.x-00ADD8?style=flat&logo=astra&logoColor=white) |                                                        ![Golang 1.19](https://img.shields.io/badge/Golang-1.19-%2300ADD8.svg?style=flat&logo=go&logoColor=white)                                                         | ✅ Fully supported |
-| ![Astra 1.8](https://img.shields.io/badge/Astra-1.8.x-00ADD8?style=flat&logo=astra&logoColor=white) | ![Golang 1.21](https://img.shields.io/badge/Golang-1.21-%2300ADD8.svg?style=flat&logo=go&logoColor=white) <br> ![Golang 1.23](https://img.shields.io/badge/Golang-1.23-%2300ADD8.svg?style=flat&logo=go&logoColor=white) | ✅ Fully supported |
+|             OS              |                                Golang                                | Status                      |
+| :-------------------------: | :------------------------------------------------------------------: | :-------------------------- |
+| ![Astra 1.7][astra-img-1.7] |                   ![Golang 1.19][golang-img-1.19]                    | ![Supported][supported-img] |
+| ![Astra 1.8][astra-img-1.8] | ![Golang 1.21][golang-img-1.21] <br> ![Golang 1.23][golang-img-1.23] | ![Supported][supported-img] |
+
+<!-- Ссылки вынесены вниз для уменьшения рендеринга таблицы. Данный подход является, своего рода, snippet -->
+[astra-img-1.7]: https://img.shields.io/badge/Astra-1.7.x-00ADD8?style=flat&logo=astra&logoColor=white
+[astra-img-1.8]: https://img.shields.io/badge/Astra-1.8.x-00ADD8?style=flat&logo=astra&logoColor=white
+[golang-img-1.19]: https://img.shields.io/badge/Golang-1.19-%2300ADD8.svg?style=flat&logo=go&logoColor=white
+[golang-img-1.21]: https://img.shields.io/badge/Golang-1.21-%2300ADD8.svg?style=flat&logo=go&logoColor=white
+[golang-img-1.23]: https://img.shields.io/badge/Golang-1.23-%2300ADD8.svg?style=flat&logo=go&logoColor=white
+[supported-img]: https://img.shields.io/badge/Supported-%230db7ed.svg?logo=Docker&style=for-the-badge&logoColor=white
 
 <div align="center"> <sub> Таблица 1. Поддерживаемые ОС-ы. </sub> </div>
 <p>&nbsp;</p>
@@ -229,7 +237,7 @@ FROM golang:1.21-astra1.8.2-slim
 
 WORKDIR /usr/src/app
 
-# pre-copy/cache go.mod for pre-downloading dependencies and only redownloading them in subsequent builds if they change
+# pre-copy/cache go.mod for pre-downloading dependencies and only re-downloading them in subsequent builds if they change
 COPY go.mod go.sum ./
 RUN go mod download
 
@@ -251,7 +259,7 @@ $ docker run -it --rm --name my-running-app my-golang-app
 Для того, чтобы запустить компиляцию внутри докер контейнера
 
 ```console
-$ docker run --rm -v "$PWD":/usr/src/myapp -w /usr/src/myapp golang:1.21-astra1.8.2-slim go build -v
+$ docker run --rm -v "$PWD":/usr/src/my_app -w /usr/src/my_app golang:1.21-astra1.8.2-slim go build -v
 
 ...run logic...
 ```
@@ -259,7 +267,7 @@ $ docker run --rm -v "$PWD":/usr/src/myapp -w /usr/src/myapp golang:1.21-astra1.
 Кросс-компиляция приложения внутри контейнера
 
 ```console
-$ docker run --rm -v "$PWD":/usr/src/myapp -w /usr/src/myapp -e GOOS=windows -e GOARCH=386 golang:1.21-astra1.8.2-slim go build -v
+$ docker run --rm -v "$PWD":/usr/src/my_app -w /usr/src/my_app -e GOOS=windows -e GOARCH=386 golang:1.21-astra1.8.2-slim go build -v
 
 ...run logic...
 ```
@@ -267,11 +275,11 @@ $ docker run --rm -v "$PWD":/usr/src/myapp -w /usr/src/myapp -e GOOS=windows -e 
 Альтернативный подход для сборки всех платформ за один раз
 
 ```console
-$ docker run --rm -it -v "$PWD":/usr/src/myapp -w /usr/src/myapp golang:1.21-astra1.8.2-slim bash
+$ docker run --rm -it -v "$PWD":/usr/src/my_app -w /usr/src/my_app golang:1.21-astra1.8.2-slim bash
 $ for GOOS in darwin linux; do
 >   for GOARCH in 386 amd64; do
 >     export GOOS GOARCH
->     go build -v -o myapp-$GOOS-$GOARCH
+>     go build -v -o my_app-$GOOS-$GOARCH
 >   done
 > done
 
@@ -468,7 +476,12 @@ docker run --rm golang:1.21-astra1.8.2 bash -c "go install github.com/cosmos72/g
 
 ### [Ensuring secure software development](#contents)
 
-Для обеспечения РБПО будут разобраны некоторые нюансы
+Для обеспечения [РБПО](https://habr.com/ru/companies/swordfish_security/articles/848272/) будут разобраны некоторые нюансы
+
+>>> [!warning]
+
+- `UXP` не рекомендуется для использования при прохождении сертификации на базе Астра Линукс, т.к. вызывает проблемы при подписи посредством утилиты `bsign`: ошибки при распаковке UPX из памяти `memfs:upx`
+>>>
 
 При помощи утилиты [checksec](https://github.com/slimm609/checksec) можно проверить свойства исполняемых файлов
 
