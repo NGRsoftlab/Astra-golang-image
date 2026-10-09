@@ -1,0 +1,34 @@
+include:
+  - project: borrowed-components/automation/gitlab-ci
+    ref: master
+    file: .gitlab-ci-container-workflow.yml
+  - project: borrowed-components/automation/gitlab-ci
+    ref: feature/release-template
+    file: templates/.gitlab-ci-release.yml
+
+stages:
+  - sync
+  - analyze
+  - assembly
+  - release
+
+variables:
+  RELEASE_SOURCE_PROJECT: borrowed-components/interpreters/golang/go
+  RELEASE_TAG_REGEX: '^go(1\.25\.[0-9]+)$'
+  RELEASE_ARTIFACT_URL: https://pr.ngrsoftlab.ru/repository/assembled-interpreter/golang/go{version}-linux-amd64.tgz
+  RELEASE_ARTIFACT_REF: go{version}
+  RELEASE_ARTIFACT_VARIABLES: GOLANG_IS_BOOTSTRAP=false
+  RELEASE_IMAGE_NAME: golang-release-test
+  RELEASE_IMAGE_TAGS: '{version}-astra1.8.x-slim {minor}-astra1.8.x-slim'
+  RELEASE_IMAGE_BUILD_ARGS: --build-arg go_identity={artifact} --build-arg image_version=1.8.x-slim
+  RELEASE_IMAGE_VARIABLES: CONTAINER_MANIFEST_PATH=Dockerfile
+  RELEASE_TEMPLATES_REF: feature/release-template
+  RELEASE_VERIFY_COMMAND: go version | grep -F "go{version} "
+
+release-plan:
+  extends: .release-tpl-plan
+  stage: release
+
+release-run:
+  extends: .release-tpl-run
+  stage: release
