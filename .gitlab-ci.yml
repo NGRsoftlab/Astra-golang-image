@@ -3,7 +3,7 @@ include:
     ref: master
     file: .gitlab-ci-container-workflow.yml
   - project: borrowed-components/automation/gitlab-ci
-    ref: feature/release-template
+    ref: master
     file: templates/.gitlab-ci-release.yml
 
 stages:
@@ -25,7 +25,6 @@ variables:
     {version}-astra1.8.x-slim {series}-astra1.8.x-slim ::: --build-arg go_identity={artifact} --build-arg image_version=1.8.x-slim
   RELEASE_IMAGE_VARIABLES: CONTAINER_MANIFEST_PATH=Dockerfile
   RELEASE_VERIFY_COMMAND: go version | grep -F "go{version} "
-  RELEASE_TEMPLATES_REF: feature/release-template
 
 release-plan:
   extends: .release-tpl-plan
