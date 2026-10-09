@@ -14,16 +14,18 @@ stages:
 
 variables:
   RELEASE_SOURCE_PROJECT: borrowed-components/interpreters/golang/go
-  RELEASE_TAG_REGEX: '^go(1\.25\.[0-9]+)$'
+  RELEASE_TAG_REGEX: '^go([0-9]+\.[0-9]+\.[0-9]+)$'
+  RELEASE_SERIES_FIELDS: "2"
+  RELEASE_SERIES_MIN: "1.25"
   RELEASE_ARTIFACT_URL: https://pr.ngrsoftlab.ru/repository/assembled-interpreter/golang/go{version}-linux-amd64.tgz
   RELEASE_ARTIFACT_REF: go{version}
   RELEASE_ARTIFACT_VARIABLES: GOLANG_IS_BOOTSTRAP=false
-  RELEASE_IMAGE_NAME: golang-release-test
-  RELEASE_IMAGE_TAGS: '{version}-astra1.8.x-slim {minor}-astra1.8.x-slim'
-  RELEASE_IMAGE_BUILD_ARGS: --build-arg go_identity={artifact} --build-arg image_version=1.8.x-slim
+  RELEASE_IMAGE_NAME: golang
+  RELEASE_IMAGE_VARIANTS: |
+    {version}-astra1.8.x-slim {series}-astra1.8.x-slim ::: --build-arg go_identity={artifact} --build-arg image_version=1.8.x-slim
   RELEASE_IMAGE_VARIABLES: CONTAINER_MANIFEST_PATH=Dockerfile
-  RELEASE_TEMPLATES_REF: feature/release-template
   RELEASE_VERIFY_COMMAND: go version | grep -F "go{version} "
+  RELEASE_TEMPLATES_REF: feature/release-template
 
 release-plan:
   extends: .release-tpl-plan
